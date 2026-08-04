@@ -2,6 +2,8 @@
 
 一个本地可用、也可一键上线的塔罗占卜网页。单文件、零依赖，双击 `index.html` 即玩。
 
+**在线版：https://jiashu3.github.io/tarot/**
+
 ![牌面](images/m17.jpg)
 
 ## 快速开始
