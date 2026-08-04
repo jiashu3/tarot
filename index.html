@@ -543,6 +543,7 @@ const BACK_SVG=`<svg viewBox="0 0 120 207" xmlns="http://www.w3.org/2000/svg">
 
 /* ================= 状态与存储 ================= */
 const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const state={question:'',spread:null,deck:[],picks:[],recordId:null,mode:'live',lastRaw:''};
 
 const store={
@@ -710,7 +711,7 @@ function renderRecords(){
     const when=`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
     const cards=r.picks.map(p=>CARD_BY_ID[p.cid]?.zh).filter(Boolean).join(' · ');
     return `<div class="rec-item" data-id="${r.id}">
-      <div class="t"><b>${r.q||'（未提问）'}</b><i>${when} ｜ ${s?.name||''} ｜ ${cards}</i></div>
+      <div class="t"><b>${esc(r.q||'（未提问）')}</b><i>${when} ｜ ${s?.name||''} ｜ ${cards}</i></div>
       <button class="del" data-del="${r.id}" title="删除">✕</button>
     </div>`;
   }).join('');

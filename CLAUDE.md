@@ -31,9 +31,17 @@
 2. 系统提示里写"提醒咨询专业人士"会让模型借题发挥、整段拒绝解读——免责交给 UI 层。
 3. node fetch 访问 `commons.wikimedia.org/w/api.php` 在本机网络不通；`curl + Special:FilePath` 可以。
 
+## 部署环境（改代码后上线必读）
+- 线上：https://jiashu3.github.io/tarot/ ｜ 远程：github.com/jiashu3/tarot（公开，main 分支）
+- 更新流程：`git add -A && git commit -m "..." && git push`，Pages 约 1 分钟自动重建
+- **本机直连 github.com 不通**（api.github.com 通）；push 必须走用户本地代理 `127.0.0.1:3213`（仓库已配 `http.proxy`，代理工具需保持运行）
+- gh CLI 在 `C:\Program Files\GitHub CLI\gh.exe`（未进 PATH），已设备流登录 jiashu3
+
 ## 当前状态（2026-08-03）
 - ✅ M1–M4：完整抽牌流程（洗牌/牌扇/翻牌）、AI 流式解读、占卜记录、78 张公有领域牌图
 - ✅ V2 复杂牌阵系统：8 个牌阵（含是否/四季/关系/六芒星/凯尔特十字）、坐标布局引擎、牌阵选择器（点阵预览）、AI prompt 按牌数自适应 + 专属指令、兜底判定
-- ⬜ 待办：M5 部署（GitHub Pages）、Canvas 结果分享图、牌库浏览页、每日一牌、PWA、Key 代理（Cloudflare Workers）
+- ✅ M5 部署上线（GitHub Pages）
+- ⬜ 待办（按建议优先级）：Canvas 结果分享图（获客发动机，最优先）、微信小程序+流量主、Key 代理（Cloudflare Workers + 配额）、牌库浏览页、每日一牌、PWA
+- 商业化与安全分析结论见 `docs/PROJECT.md` 第八、九节
 
 完整构建思路与演进记录见 `docs/PROJECT.md`。
