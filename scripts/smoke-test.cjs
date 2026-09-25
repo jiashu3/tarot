@@ -4,19 +4,28 @@ const path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const js = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
+const ctx2d = () => ({
+  measureText: s => ({ width: String(s).length * 16 }), // 近似宽度，够驱动换行逻辑
+  createLinearGradient: () => ({ addColorStop() {} }),
+  createRadialGradient: () => ({ addColorStop() {} }),
+  fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},
+  save() {}, restore() {}, translate() {}, rotate() {}, scale() {},
+  arc() {}, arcTo() {}, closePath() {}, clip() {}, drawImage() {}, fillText() {},
+});
+const fakeCanvas = () => ({ width: 0, height: 0, style: {}, getContext: () => ctx2d() });
 const el = () => ({
   classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
   style: {}, addEventListener() {}, innerHTML: '', textContent: '', value: '',
   dataset: {}, querySelector: () => el(), querySelectorAll: () => [],
   appendChild() {}, closest: () => null,
 });
-global.document = { querySelector: () => el(), querySelectorAll: () => [], createElement: () => el(), body: el() };
+global.document = { querySelector: () => el(), querySelectorAll: () => [], createElement: t => t === 'canvas' ? fakeCanvas() : el(), body: el() };
 global.window = { scrollTo() {} };
 global.matchMedia = () => ({ matches: false });
 global.localStorage = { getItem: () => null, setItem() {} };
 global.navigator = {};
 
-const api = new Function(js + '\nreturn {CARDS,SPREADS,shuffle,buildPrompt,sysPrompt,localReadingText,localVerdict,previewHTML,state};')();
+const api = new Function(js + '\nreturn {CARDS,SPREADS,shuffle,buildPrompt,sysPrompt,localReadingText,localVerdict,previewHTML,shareVerdictText,renderSharePoster,state};')();
 
 let pass = 0, fail = 0;
 const ok = (cond, name) => { if (cond) { pass++; console.log('  ✓', name); } else { fail++; console.error('  ✗', name); } };
@@ -65,5 +74,33 @@ ok(/最可能应验在[春夏秋冬]季/.test(v), '四季牌阵给出季节判�
 pick(api.SPREADS[0]); // 单张
 ok(api.localReadingText().length > 80, '单张兜底解读文本正常');
 
+console.log('[5] 分享图摘要提取');
+api.state.lastRaw = '先回应问题，点出整体能量。\n\n过去｜愚人（正位）\n一段解读。\n\n「综合指引」\n牌面显示你该勇敢出发，答案是会。';
+const sv = api.shareVerdictText();
+ok(sv.startsWith('牌面显示') && !sv.includes('综合指引'), '综合指引段落被正确提取: ' + sv.slice(0, 20) + '…');
+api.state.lastRaw = 'a'.repeat(300);
+const sv2 = api.shareVerdictText();
+ok(sv2.endsWith('…') && sv2.length <= 121, '超长摘要截断为 120 字 + 省略号（实际 ' + sv2.length + ' 字）');
+api.state.lastRaw = '';
+ok(api.shareVerdictText() === '', '无解读文本时返回空串');
+api.state.lastRaw = '综合指引：星币十正位，家业可成。';
+ok(api.shareVerdictText() === '星币十正位，家业可成。', '带冒号的综合指引也能提取');
+
+(async () => {
+console.log('[6] 分享海报渲染（桩画布，走占位牌面分支）');
+api.state.question = '我近期的感情走向如何？';
+pick(api.SPREADS.find(s => s.id === 'three'), [0, 1, 0]);
+api.state.lastRaw = '综合指引：一切都会好起来。';
+const cv3 = await api.renderSharePoster(false);
+ok(cv3.width === 1500, '海报宽 750×2 = 1500（实际 ' + cv3.width + '）');
+ok(cv3.height > 1200 && cv3.height < 3000, '3 牌海报高度合理（实际 ' + cv3.height + '）');
+pick(api.SPREADS.find(s => s.id === 'celtic'));
+const cv10 = await api.renderSharePoster(false);
+ok(cv10.height > cv3.height, '10 牌双行海报高于 3 牌单行（' + cv10.height + ' > ' + cv3.height + '）');
+api.state.question = '长'.repeat(200);
+const cvLong = await api.renderSharePoster(false);
+ok(cvLong.height > 1200 && cvLong.height < 3400, '超长问题不炸版（实际 ' + cvLong.height + '）');
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 process.exit(fail ? 1 : 0);
+})();

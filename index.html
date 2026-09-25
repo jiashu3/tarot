@@ -195,6 +195,13 @@ main{position:relative;z-index:5}
 .m-actions{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
 #test-result{font-size:12.5px;letter-spacing:1px;min-height:18px;margin-top:10px}
 
+/* ============ 分享图弹窗 ============ */
+.share-modal{max-width:420px;max-height:92vh;overflow-y:auto}
+#share-img-wrap{margin:2px 0 4px}
+#share-img-wrap img,#share-img-wrap canvas{width:100%;height:auto;display:block;border-radius:14px;
+  box-shadow:0 12px 40px rgba(0,0,0,.55)}
+a.btn{text-decoration:none;text-align:center}
+
 /* ============ 页脚 ============ */
 footer{position:relative;z-index:5;text-align:center;color:#5c5780;font-size:12px;
   letter-spacing:2px;padding:18px 16px 26px;line-height:2}
@@ -277,11 +284,13 @@ footer{position:relative;z-index:5;text-align:center;color:#5c5780;font-size:12p
     <div class="mini-row" id="mini-row"></div>
     <div class="reading-body" id="reading-body"></div>
     <div class="actions" id="reading-actions" style="display:none">
+      <button class="btn primary" id="share-btn">✨ 分 享 图</button>
       <button class="btn" id="again-btn">再 来 一 占</button>
       <button class="btn ghost" id="copy-btn">复 制 解 读</button>
       <button class="btn ghost" id="regen-btn">重 新 解 读</button>
     </div>
     <div class="actions" id="history-actions" style="display:none">
+      <button class="btn ghost" id="share-btn2">分 享 图</button>
       <button class="btn" id="back-records-btn">返 回 记 录</button>
       <button class="btn ghost" id="again-btn2">再 来 一 占</button>
     </div>
@@ -318,6 +327,19 @@ footer{position:relative;z-index:5;text-align:center;color:#5c5780;font-size:12p
       <button class="btn ghost" id="test-cfg">测 试 连 接</button>
     </div>
     <div id="test-result"></div>
+  </div>
+</div>
+
+<!-- 分享图弹窗 -->
+<div class="overlay" id="share-overlay">
+  <div class="modal share-modal">
+    <h2>占 卜 分 享 图</h2>
+    <p class="sub" id="share-tip">长按图片保存，或下载后分享到朋友圈 / 小红书</p>
+    <div id="share-img-wrap"></div>
+    <div class="m-actions">
+      <a class="btn primary" id="share-download" style="flex:1">下 载 图 片</a>
+      <button class="btn ghost" id="share-close">关 闭</button>
+    </div>
   </div>
 </div>
 
@@ -890,6 +912,236 @@ $('#copy-btn').addEventListener('click',async()=>{
     setTimeout(()=>$('#copy-btn').textContent='复 制 解 读',1600);
   }catch{alert('复制失败，请手动选择文本复制');}
 });
+
+/* ================= 分享图 ================= */
+let shareObjURL=null;
+
+/* 从解读全文中提取「综合指引」段，作为分享图摘要 */
+function shareVerdictText(){
+  const raw=(state.lastRaw||'').replace(/\*\*/g,'').trim();
+  if(!raw)return '';
+  const parts=raw.split(/综合指引[】\s|:：]*/);
+  let t=parts.length>1?parts[parts.length-1]:raw;
+  t=t.replace(/[「」#>*_\-]/g,'').replace(/\s+/g,' ').trim();
+  const MAX=120;
+  return t.length>MAX?t.slice(0,MAX).trim()+'…':t;
+}
+
+function rr(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function wrapLines(ctx,text,maxW){
+  const lines=[];let cur='';
+  for(const ch of String(text)){
+    if(ch==='\n'){lines.push(cur);cur='';continue;}
+    if(cur&&ctx.measureText(cur+ch).width>maxW){lines.push(cur);cur=ch;}
+    else cur+=ch;
+  }
+  if(cur)lines.push(cur);
+  return lines;
+}
+function ellipsize(ctx,line,maxW){
+  while(line.length>1&&ctx.measureText(line+'…').width>maxW)line=line.slice(0,-1);
+  return line+'…';
+}
+function loadImageEl(src){
+  return new Promise(res=>{
+    let settled=false;
+    const done=v=>{if(!settled){settled=true;res(v);}};
+    const im=new Image();
+    im.onload=()=>done(im);
+    im.onerror=()=>done(null);
+    setTimeout(()=>done(null),8000);
+    im.src=src;
+  });
+}
+
+/* 单张牌面：有图贴图，无图画牌名占位卡（镜像页面 .ph 样式） */
+function drawCardFace(ctx,card,im,x,y,w,h){
+  ctx.save();
+  rr(ctx,x,y,w,h,10);ctx.clip();
+  if(im){
+    ctx.drawImage(im,x,y,w,h);
+  }else{
+    const g=ctx.createLinearGradient(0,y,0,y+h);
+    g.addColorStop(0,'#221c48');g.addColorStop(1,'#141126');
+    ctx.fillStyle=g;ctx.fillRect(x,y,w,h);
+    ctx.fillStyle='#c9a45c';ctx.font=`${Math.round(w*.24)}px Georgia,serif`;
+    ctx.fillText(SUIT_META[card.arcana].glyph,x+w/2,y+h*.38);
+    ctx.fillStyle='#ecd9a8';ctx.font=`600 ${Math.round(w*.13)}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.fillText(card.zh,x+w/2,y+h*.56);
+    ctx.fillStyle='#9a94ba';ctx.font=`${Math.round(w*.075)}px Georgia,serif`;
+    ctx.fillText(card.en,x+w/2,y+h*.7);
+  }
+  ctx.restore();
+  rr(ctx,x,y,w,h,10);
+  ctx.strokeStyle='rgba(201,164,92,.6)';ctx.lineWidth=1.5;ctx.stroke();
+}
+
+/* 渲染分享海报：750 逻辑宽 ×2 导出；纵向排布 品牌→问题→牌阵→综合指引→引流 footer */
+async function renderSharePoster(usePhotos){
+  const W=750,S=2,pad=56,gap=18;
+  const cards=state.picks,n=cards.length;
+  const rows=n<=5?1:2,perRow=Math.ceil(n/rows);
+  const cw=Math.floor(Math.min(150,(W-pad*2-(perRow-1)*gap)/perRow));
+  const ch=Math.round(cw*207/120),capH=64;
+  const serif='Georgia,"Songti SC","STSong","SimSun",serif';
+  const sans='"PingFang SC","Microsoft YaHei",system-ui,sans-serif';
+
+  /* 先用临时上下文量文本 */
+  const mctx=document.createElement('canvas').getContext('2d');
+  mctx.font=`600 23px ${serif}`;
+  const qText=state.question?`「${state.question}」`:'— 通 用 解 读 —';
+  let qLines=wrapLines(mctx,qText,W-pad*2-60);
+  if(qLines.length>2)qLines=[qLines[0],ellipsize(mctx,qLines[1],W-pad*2-60)];
+  mctx.font=`16px ${sans}`;
+  const summary=shareVerdictText();
+  const sumMaxW=W-pad*2-52;
+  let sumLines=summary?wrapLines(mctx,summary,sumMaxW):[];
+  if(sumLines.length>5)sumLines=[...sumLines.slice(0,4),ellipsize(mctx,sumLines[4],sumMaxW)];
+
+  const rec=store.records.find(r=>r.id===state.recordId);
+  const dt=rec?new Date(rec.ts):new Date();
+  const meta=`${state.spread.name} · ${dt.getFullYear()} 年 ${dt.getMonth()+1} 月 ${dt.getDate()} 日`;
+
+  const imgs=usePhotos?await Promise.all(cards.map(c=>loadImageEl(`images/${c.id}.jpg`))):cards.map(()=>null);
+
+  /* 布局：每个元素登记高度，绘制回调拿到自己的 y0，最后按总高建画布，避免测量/绘制两套算式跑偏 */
+  const ops=[];let cy=0;
+  const step=(h,fn)=>{const y0=cy;ops.push(ctx=>fn(ctx,y0));cy+=h;};
+  const noop=()=>{};
+
+  step(90,(ctx,y0)=>{ctx.font=`600 34px ${serif}`;ctx.fillStyle='#ecd9a8';ctx.fillText('✦ 星 语 塔 罗 ✦',W/2,y0+45);});
+  step(40,(ctx,y0)=>{ctx.font=`15px ${sans}`;ctx.fillStyle='#9a94ba';ctx.fillText('在 线 塔 罗 占 卜',W/2,y0+18);});
+  step(30,(ctx,y0)=>{
+    const y=y0+10;
+    ctx.strokeStyle='rgba(201,164,92,.4)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pad+70,y);ctx.lineTo(W/2-24,y);ctx.moveTo(W/2+24,y);ctx.lineTo(W-pad-70,y);ctx.stroke();
+    ctx.save();ctx.translate(W/2,y);ctx.rotate(Math.PI/4);ctx.fillStyle='#c9a45c';ctx.fillRect(-3.5,-3.5,7,7);ctx.restore();
+  });
+  qLines.forEach(ln=>step(38,(ctx,y0)=>{ctx.font=`600 23px ${serif}`;ctx.fillStyle='#eae6f4';ctx.fillText(ln,W/2,y0+19);}));
+  step(8,noop);
+  step(34,(ctx,y0)=>{ctx.font=`15px ${sans}`;ctx.fillStyle='#9a94ba';ctx.fillText(meta,W/2,y0+15);});
+  step(26,noop);
+  for(let r0=0;r0<rows;r0++){
+    step(ch+capH,(ctx,y0)=>{
+      const rowCards=cards.slice(r0*perRow,(r0+1)*perRow);
+      const rowW=rowCards.length*cw+(rowCards.length-1)*gap;
+      let x=(W-rowW)/2;
+      rowCards.forEach((c,ci)=>{
+        const i=r0*perRow+ci;
+        ctx.save();
+        if(c.rev){ctx.translate(x+cw/2,y0+ch/2);ctx.rotate(Math.PI);drawCardFace(ctx,c,imgs[i],-cw/2,-ch/2,cw,ch);}
+        else drawCardFace(ctx,c,imgs[i],x,y0,cw,ch);
+        ctx.restore();
+        ctx.font=`600 15px ${sans}`;ctx.fillStyle='#c9a45c';
+        ctx.fillText(state.spread.positions[i].name,x+cw/2,y0+ch+28);
+        ctx.font=`14px ${sans}`;ctx.fillStyle='#eae6f4';
+        ctx.fillText(`${c.zh} · ${c.rev?'逆位':'正位'}`,x+cw/2,y0+ch+50);
+        x+=cw+gap;
+      });
+    });
+  }
+  step(30,noop);
+  if(summary){
+    const boxH=64+sumLines.length*32+24;
+    step(boxH,(ctx,y0)=>{
+      rr(ctx,pad,y0,W-pad*2,boxH,16);
+      ctx.fillStyle='rgba(201,164,92,.08)';ctx.fill();
+      ctx.strokeStyle='rgba(201,164,92,.4)';ctx.lineWidth=1;ctx.stroke();
+      ctx.font=`600 16px ${serif}`;ctx.fillStyle='#c9a45c';
+      ctx.fillText('— 综 合 指 引 —',W/2,y0+32);
+      ctx.font=`16px ${sans}`;ctx.fillStyle='#d9d4ea';
+      sumLines.forEach((ln,li)=>ctx.fillText(ln,W/2,y0+78+li*32));
+    });
+    step(34,noop);
+  }
+  step(1,(ctx,y0)=>{ctx.strokeStyle='rgba(201,164,92,.3)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pad+80,y0);ctx.lineTo(W-pad-80,y0);ctx.stroke();});
+  step(40,(ctx,y0)=>{ctx.font=`15px ${sans}`;ctx.fillStyle='#ecd9a8';ctx.fillText('✦ 星语塔罗 · 免费在线占卜 ✦',W/2,y0+24);});
+  step(34,(ctx,y0)=>{ctx.font=`700 21px ${serif}`;ctx.fillStyle='#c9a45c';ctx.fillText('jiashu3.github.io/tarot',W/2,y0+18);});
+  step(50,noop);
+
+  const H=Math.round(cy);
+  const cv=document.createElement('canvas');
+  cv.width=W*S;cv.height=H*S;
+  const ctx=cv.getContext('2d');
+  ctx.scale(S,S);
+  ctx.textAlign='center';ctx.textBaseline='middle';
+
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#0b0a1a');bg.addColorStop(.55,'#171434');bg.addColorStop(1,'#0b0a1a');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  let rg=ctx.createRadialGradient(W*.82,-40,10,W*.82,-40,430);
+  rg.addColorStop(0,'rgba(96,72,168,.42)');rg.addColorStop(1,'rgba(96,72,168,0)');
+  ctx.fillStyle=rg;ctx.fillRect(0,0,W,H);
+  rg=ctx.createRadialGradient(W*.08,H+30,10,W*.08,H+30,420);
+  rg.addColorStop(0,'rgba(56,42,110,.42)');rg.addColorStop(1,'rgba(56,42,110,0)');
+  ctx.fillStyle=rg;ctx.fillRect(0,0,W,H);
+  for(let i=0;i<90;i++){
+    ctx.globalAlpha=.12+Math.random()*.45;
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(Math.random()*W,Math.random()*H,.4+Math.random()*1.5,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  rr(ctx,13,13,W-26,H-26,18);
+  ctx.strokeStyle='rgba(201,164,92,.28)';ctx.lineWidth=1;ctx.stroke();
+
+  ops.forEach(f=>f(ctx));
+  return cv;
+}
+
+function exportPoster(cv){
+  return new Promise((res,rej)=>{
+    try{cv.toBlob(b=>b?res(URL.createObjectURL(b)):rej(new Error('图片编码失败')),'image/png');}
+    catch(e){rej(e);}
+  });
+}
+
+async function shareImage(e){
+  const btn=e.currentTarget,old=btn.textContent;
+  btn.disabled=true;btn.textContent='生 成 中 …';
+  try{
+    let cv=await renderSharePoster(true),url=null;
+    try{url=await exportPoster(cv);}
+    catch(_){ /* file:// 下牌图会污染画布导致无法导出 → 用牌名占位卡重绘再试 */
+      cv=await renderSharePoster(false);
+      try{url=await exportPoster(cv);}catch(_){url=null;}
+    }
+    if(shareObjURL){URL.revokeObjectURL(shareObjURL);shareObjURL=null;}
+    const wrap=$('#share-img-wrap');wrap.innerHTML='';
+    const dl=$('#share-download');
+    if(url){
+      shareObjURL=url;
+      const img=document.createElement('img');
+      img.src=url;img.alt='星语塔罗占卜分享图';
+      wrap.appendChild(img);
+      const rec=store.records.find(r=>r.id===state.recordId);
+      const dt=rec?new Date(rec.ts):new Date();
+      const stamp=`${dt.getFullYear()}${String(dt.getMonth()+1).padStart(2,'0')}${String(dt.getDate()).padStart(2,'0')}`;
+      dl.href=url;dl.download=`星语塔罗-${stamp}.png`;dl.style.display='';
+      $('#share-tip').textContent='长按图片保存，或下载后分享到朋友圈 / 小红书';
+    }else{ /* 兜底中的兜底：直接把画布摆上弹窗，截图分享 */
+      cv.style.width='100%';
+      wrap.appendChild(cv);
+      dl.style.display='none';
+      $('#share-tip').textContent='当前环境无法导出图片，可直接截图分享';
+    }
+    $('#share-overlay').classList.add('open');
+  }finally{
+    btn.disabled=false;btn.textContent=old;
+  }
+}
+$('#share-btn').addEventListener('click',shareImage);
+$('#share-btn2').addEventListener('click',shareImage);
+$('#share-close').addEventListener('click',()=>$('#share-overlay').classList.remove('open'));
+$('#share-overlay').addEventListener('click',e=>{if(e.target.id==='share-overlay')$('#share-overlay').classList.remove('open');});
 
 /* ================= 导航 ================= */
 document.querySelectorAll('[data-nav]').forEach(btn=>btn.addEventListener('click',()=>{

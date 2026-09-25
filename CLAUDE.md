@@ -37,11 +37,12 @@
 - **本机直连 github.com 不通**（api.github.com 通）；push 必须走用户本地代理 `127.0.0.1:3213`（仓库已配 `http.proxy`，代理工具需保持运行）
 - gh CLI 在 `C:\Program Files\GitHub CLI\gh.exe`（未进 PATH），已设备流登录 jiashu3
 
-## 当前状态（2026-08-03）
+## 当前状态（2026-09-25）
 - ✅ M1–M4：完整抽牌流程（洗牌/牌扇/翻牌）、AI 流式解读、占卜记录、78 张公有领域牌图
 - ✅ V2 复杂牌阵系统：8 个牌阵（含是否/四季/关系/六芒星/凯尔特十字）、坐标布局引擎、牌阵选择器（点阵预览）、AI prompt 按牌数自适应 + 专属指令、兜底判定
 - ✅ M5 部署上线（GitHub Pages）
-- ⬜ 待办（按建议优先级）：Canvas 结果分享图（获客发动机，最优先）、微信小程序+流量主、Key 代理（Cloudflare Workers + 配额）、牌库浏览页、每日一牌、PWA
+- ✅ V3 Canvas 结果分享图：解读页/记录页「✨ 分享图」生成 750×2 PNG 海报（品牌头 + 问题 + 牌面照片 + 综合指引摘要 + 引流 footer `jiashu3.github.io/tarot`），弹窗长按/下载保存；file:// 下牌图污染画布会自动降级为牌名占位卡重导
+- ⬜ 待办（按建议优先级）：微信小程序+流量主、Key 代理（Cloudflare Workers + 配额）、牌库浏览页、每日一牌、PWA
 - 商业化与安全分析结论见 `docs/PROJECT.md` 第八、九节
 
 完整构建思路与演进记录见 `docs/PROJECT.md`。
